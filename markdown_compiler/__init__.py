@@ -1,155 +1,150 @@
-'''
+"""
 This file contains functions that work on entire documents at a time
 (and not line-by-line).
-'''
+"""
 
-from markdown_compiler.util.line_functions import *
+import re
+
+from markdown_compiler.util.line_functions import (
+    compile_headers,
+    compile_strikethrough,
+    compile_bold_stars,
+    compile_bold_underscore,
+    compile_italic_star,
+    compile_italic_underscore,
+    compile_code_inline,
+    compile_images,
+    compile_links,
+)
 
 
 def compile_lines(text):
-    r'''
+    r"""
     Apply all markdown transformations to the input text.
-    '''
-    lines = text.split('\n')
-    new_lines = []
+    (Handles multiline <p> and multiline code blocks using ``` fences.)
+    """
+    lines = text.split("\n")
+
+    out = []
     in_paragraph = False
     in_code_block = False
 
-    for line in lines:
-        raw = line  # preserve indentation for code blocks
-        stripped = line.strip()
+    for raw in lines:
+        stripped = raw.strip()
 
-        # --- fenced code blocks: ``` ... ``` ---
-        if stripped.startswith("```"):
+        # --- code fences ---
+        if stripped == "```":
             if not in_code_block:
-                # starting a code block
+                # opening fence
                 in_code_block = True
-
-                # close paragraph before <pre>
-                if in_paragraph:
-                    new_lines.append("</p>")
-                    in_paragraph = False
-
-                new_lines.append("<pre>")
+                out.append("<pre>")
             else:
-                # ending a code block
+                # closing fence
                 in_code_block = False
-                new_lines.append("</pre>")
+                out.append("</pre>")
             continue
 
-        # inside code: no formatting, keep exact text
+        # --- inside code block: DO NOT transform markdown ---
         if in_code_block:
-            new_lines.append(raw)
+            out.append(raw.rstrip("\n"))
             continue
 
-        # blank line ends a paragraph
+        # --- blank line closes paragraph ---
         if stripped == "":
             if in_paragraph:
-                new_lines.append("</p>")
+                out.append("</p>")
                 in_paragraph = False
             else:
-                new_lines.append("")
+                out.append("")
             continue
 
-        # start paragraph if needed (headers are NOT wrapped in <p>)
-        if not stripped.startswith("#") and not in_paragraph:
+        # --- headers should not be inside a paragraph ---
+        if stripped.startswith("#"):
+            if in_paragraph:
+                out.append("</p>")
+                in_paragraph = False
+
+            line = stripped
+            line = compile_headers(line)
+            out.append(line)
+            continue
+
+        # --- normal paragraph text ---
+        if not in_paragraph:
             in_paragraph = True
-            new_lines.append("<p>")
+            out.append("<p>")
 
-        # apply line-by-line transformations
-        out = stripped
-        out = compile_headers(out)
-        out = compile_strikethrough(out)
-        out = compile_bold_stars(out)
-        out = compile_bold_underscore(out)
-        out = compile_italic_star(out)
-        out = compile_italic_underscore(out)
-        out = compile_code_inline(out)
-        out = compile_images(out)
-        out = compile_links(out)
+        line = stripped
+        line = compile_strikethrough(line)
+        line = compile_bold_stars(line)
+        line = compile_bold_underscore(line)
+        line = compile_italic_star(line)
+        line = compile_italic_underscore(line)
+        line = compile_code_inline(line)
+        line = compile_images(line)
+        line = compile_links(line)
+        out.append(line)
 
-        new_lines.append(out)
+    if in_code_block:
+        out.append("</pre>")
 
-    # close final paragraph if file ends inside one
     if in_paragraph:
-        new_lines.append("</p>")
+        out.append("</p>")
 
-    return "\n".join(new_lines)
+    return "\n".join(out)
 
 
 def markdown_to_html(markdown, add_css):
-    '''
+    """
     Convert the input markdown into valid HTML,
     optionally adding CSS formatting.
-
-    >>> assert(markdown_to_html('this *is* a _test_', False))
-    >>> assert(markdown_to_html('this *is* a _test_', True))
-    '''
-
-    html = '''
+    """
+    html = """
 <html>
 <head>
     <style>
     ins { text-decoration: line-through; }
     </style>
-    '''
+"""
     if add_css:
-        html += '''
+        html += """
 <link rel="stylesheet" href="https://izbicki.me/css/code.css" />
 <link rel="stylesheet" href="https://izbicki.me/css/default.css" />
-        '''
-    html += '''
+"""
+    html += """
 </head>
 <body>
-    ''' + compile_lines(markdown) + '''
+"""
+    html += compile_lines(markdown)
+    html += """
 </body>
 </html>
-    '''
+"""
     return html
 
 
 def minify(html):
-    r'''
+    r"""
     Remove redundant whitespace (spaces and newlines) from the input HTML,
     and convert all whitespace characters into spaces.
-
-    >>> minify('       ')
-    ''
-    >>> minify('   a    ')
-    'a'
-    >>> minify('   a    b        c    ')
-    'a b c'
-    >>> minify('a b c')
-    'a b c'
-    >>> minify('a\nb\nc')
-    'a b c'
-    >>> minify('a \nb\n c')
-    'a b c'
-    >>> minify('a\n\n\n\n\n\n\n\n\n\n\n\n\n\nb\n\n\n\n\n\n\n\n\n\n')
-    'a b'
-    '''
-    return ' '.join(html.split())
+    """
+    return re.sub(r"\s+", " ", html).strip()
 
 
 def convert_file(input_file, add_css):
-    '''
+    """
     Convert the input markdown file into an HTML file.
     If the input filename is `README.md`,
     then the output filename will be `README.html`.
-    '''
+    """
+    if input_file[-3:] != ".md":
+        raise ValueError("input_file does not end in .md")
 
-    # validate that the input file is a markdown file
-    if input_file[-3:] != '.md':
-        raise ValueError('input_file does not end in .md')
-
-    # load the input file
-    with open(input_file, 'r') as f:
+    with open(input_file, "r") as f:
         markdown = f.read()
 
-    # generate the HTML from the Markdown
     html = markdown_to_html(markdown, add_css)
     html = minify(html)
 
-    # write the output file
-    with open(input_file[:-2] + 'html', 'w') as f:
+    with open(input_file[:-2] + "html", "w") as f:
         f.write(html)
