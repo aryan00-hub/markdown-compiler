@@ -249,6 +249,7 @@ def compile_images(line):
             out += line[i]
             i += 1
     return out
+
 def compile_lines(lines):
     """
     Compile multiple lines of markdown into HTML.
