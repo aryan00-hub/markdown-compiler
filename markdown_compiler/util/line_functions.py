@@ -249,3 +249,42 @@ def compile_images(line):
             out += line[i]
             i += 1
     return out
+def compile_lines(lines):
+    """
+    Compile multiple lines of markdown into HTML.
+
+    >>> compile_lines(["1. this", "2. is", "3. a", "4. list"])
+    ['1. this 2. is 3. a 4. list']
+
+    >>> compile_lines(["1. apple", "2. banana"])
+    ['1. apple 2. banana']
+
+    >>> compile_lines(["1. one"])
+    ['1. one']
+    """
+    output = []
+    buffer = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Check if line is a numbered list item (like "1. text")
+        if (
+            len(stripped) >= 3
+            and stripped[0].isdigit()
+            and stripped[1:3] == ". "
+        ):
+            buffer.append(stripped)
+        else:
+            # If we were collecting a list, flush it
+            if buffer:
+                output.append(" ".join(buffer))
+                buffer = []
+
+            output.append(line)
+
+    # Flush remaining buffer
+    if buffer:
+        output.append(" ".join(buffer))
+
+    return output
