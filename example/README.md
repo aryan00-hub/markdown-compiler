@@ -107,3 +107,10 @@ To get this extra credit, you will have to:
 1. Add 3 doctests to the `compile_lines` function that contain markdown lists.
    These should be "good" doctests that reasonably test that the list functionality works; feel free to chat 1-1 with me about this.
 1. Modify your code so that these doctests pass.
+## No CSS Version
+
+![No CSS Screenshot](example/img/README_no_css.png)
+
+## With CSS Version
+
+![With CSS Screenshot](example/img/README_with_css.png)
